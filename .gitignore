@@ -1,0 +1,12 @@
+TC_venv/
+.pytest_cache/
+__pycache__/
+
+# Ignore everything inside data/ but not the folder itself
+data/*
+
+# Force Git to scan subdirectories inside data/
+!data/**/
+
+# Do NOT ignore .dvc files anywhere inside data/
+!data/**/*.dvc
