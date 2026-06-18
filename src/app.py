@@ -17,11 +17,7 @@ class PredictionResponse(BaseModel):
     text: str
     predictions: dict
 
-# Initialize FastAPI App
-app = FastAPI(
-    title="Real-Time Toxic Comment Classifier API",
-    description="Production-ready REST API for multi-label text moderation pulling from Hugging Face Hub."
-)
+
 
 # Global variables for model, tokenizer, and configuration
 # ==========================================================
@@ -33,6 +29,28 @@ TARGET_LABELS = ['label_hate_speech', 'label_insult', 'label_humiliate', 'label_
 
 tokenizer = None
 model = None
+
+# def init_db():
+#     """Creates a local SQLite database to track incoming inferences for Stage 5 monitoring."""
+#     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+#     conn = sqlite3.connect(DB_PATH)
+#     cursor = conn.cursor()
+#     cursor.execute('''
+#         CREATE TABLE IF NOT EXISTS inference_logs (
+#             id INTEGER PRIMARY KEY AUTOINCREMENT,
+#             timestamp TEXT,
+#             input_text TEXT,
+#             label_hate_speech REAL,
+#             label_insult REAL,
+#             label_humiliate REAL,
+#             label_dehumanize REAL,
+#             label_violence REAL
+#         )
+#     ''')
+#     conn.commit()
+#     conn.close()
+#     print(f"🗄️ SQLite database initialized at {DB_PATH}")
+from contextlib import asynccontextmanager
 
 def init_db():
     """Creates a local SQLite database to track incoming inferences for Stage 5 monitoring."""
@@ -55,22 +73,44 @@ def init_db():
     conn.close()
     print(f"🗄️ SQLite database initialized at {DB_PATH}")
 
-@app.on_event("startup")
-def startup_event():
+    
+# @app.on_event("startup")
+# def startup_event():
+#     global tokenizer, model
+    
+#     # Initialize our database logging framework
+#     init_db()
+    
+#     print(f"📥 Downloading and caching weights directly from HF Hub: {MODEL_REPO_ID}...")
+#     try:
+#         # HuggingFace automatically downloads, caches, and streams the weights directly from your account
+#         tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_REPO_ID)
+#         model = DistilBertForSequenceClassification.from_pretrained(MODEL_REPO_ID)
+#         model.eval() 
+#         print("🚀 API Server is online and authenticated with Hugging Face Hub registry!")
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to load model from Hugging Face Hub: {str(e)}")
+
+
+# Modern Lifespan Handler for Asset Preloading
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global tokenizer, model
-    
-    # Initialize our database logging framework
+    # Run setup operations
     init_db()
-    
     print(f"📥 Downloading and caching weights directly from HF Hub: {MODEL_REPO_ID}...")
-    try:
-        # HuggingFace automatically downloads, caches, and streams the weights directly from your account
-        tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_REPO_ID)
-        model = DistilBertForSequenceClassification.from_pretrained(MODEL_REPO_ID)
-        model.eval() 
-        print("🚀 API Server is online and authenticated with Hugging Face Hub registry!")
-    except Exception as e:
-        raise RuntimeError(f"Failed to load model from Hugging Face Hub: {str(e)}")
+    tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_REPO_ID)
+    model = DistilBertForSequenceClassification.from_pretrained(MODEL_REPO_ID)
+    model.eval()
+    print("🚀 API Server is online and authenticated with Hugging Face Hub registry!")
+    yield
+
+# Initialize FastAPI App
+app = FastAPI(
+    title="Real-Time Toxic Comment Classifier API",
+    description="Production-ready REST API for multi-label text moderation pulling from Hugging Face Hub.",
+    lifespan=lifespan
+)
 
 @app.get("/")
 def health_check():
@@ -94,7 +134,8 @@ def predict_toxicity(payload: CommentRequest):
         # Disable gradient calculations for production speed
         with torch.no_grad():
             outputs = model(**inputs)
-            logits = outputs.logits.squeeze().numpy()
+            # logits = outputs.logits.squeeze().numpy()
+            logits = outputs.logits.squeeze().detach().cpu().numpy()
             
         # Apply Sigmoid activation function to get continuous probability metrics
         probabilities = 1 / (1 + np.exp(-logits))
