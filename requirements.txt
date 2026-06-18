@@ -11,3 +11,4 @@ torch
 numpy 
 uvicorn   
 pydantic
+cards
