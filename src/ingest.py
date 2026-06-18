@@ -12,25 +12,19 @@ def load_and_aggregate_data():
     
     print(f"Raw rows loaded: {len(df)}")
     
-    # Target columns we want to predict as multi-label binary targets
-    target_cols = ['hatespeech', 'insult', 'dehumanize', 'violence', 'genocide']
-    
-    # Step 1: Average the annotator scores for each comment
-    # The raw values are typically continuous scores or probabilities from annotators
-    print("🔄 Aggregating annotator responses per unique comment...")
+    print("🔄 Aggregating annotator responses per unique comment using IRT scores...")
+    # Step 1: Average the IRT-adjusted hate_speech_score for each unique comment
     grouped = df.groupby('comment_id').agg({
         'text': 'first',
-        'hatespeech': 'mean',
-        'insult': 'mean',
-        'dehumanize': 'mean',
-        'violence': 'mean',
-        'genocide': 'mean'
+        'hate_speech_score': 'mean'
     }).reset_index()
     
-    # Step 2: Convert continuous average ratings into strict binary 0 or 1 labels 
-    # (e.g., if mean score > 0.5, we classify it as true for that label)
-    for col in target_cols:
-        grouped[col] = (grouped[col] >= 0.5).astype(int)
+    # Step 2: Convert continuous average IRT rating into strict binary label 
+    # (> 0.5 is hate speech based on dataset recommendations)
+    grouped['is_hate_speech'] = (grouped['hate_speech_score'] > 0.5).astype(int)
+    
+    # Drop the continuous score column to keep the schema clean for training
+    grouped = grouped.drop(columns=['hate_speech_score'])
         
     print(f"Unique consolidated comments: {len(grouped)}")
     return grouped
