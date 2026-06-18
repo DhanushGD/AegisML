@@ -5,3 +5,7 @@ dvc
 great_expectations 
 pyyaml 
 scikit-multilearn
+transformers 
+accelerate 
+torch
+numpy 
