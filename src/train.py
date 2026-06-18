@@ -40,25 +40,14 @@
 #
 # ============================================================
 
+# src/train.py
 import os
 import torch
 import numpy as np
 import pandas as pd
-
 from torch.utils.data import Dataset
-
-from transformers import (
-    DistilBertTokenizerFast,
-    DistilBertForSequenceClassification,
-    Trainer,
-    TrainingArguments
-)
-
-from sklearn.metrics import (
-    f1_score,
-    roc_auc_score
-)
-
+from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification, Trainer, TrainingArguments
+from sklearn.metrics import f1_score, roc_auc_score
 # ============================================================
 # DATASET CLASS
 # ============================================================
@@ -106,26 +95,16 @@ from sklearn.metrics import (
 #
 # ============================================================
 
+# 1. Custom Multi-Label Dataset Class
 class ToxicDataset(Dataset):
-
     def __init__(self, encodings, labels):
         self.encodings = encodings
         self.labels = labels
 
     def __getitem__(self, idx):
-
-        # Fetch tokenized inputs
-        item = {
-            key: torch.tensor(val[idx])
-            for key, val in self.encodings.items()
-        }
-
-        # Multi-label targets must be float tensors
-        item["labels"] = torch.tensor(
-            self.labels[idx],
-            dtype=torch.float
-        )
-
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        # Multi-label classification requires FloatTensor for target values
+        item['labels'] = torch.tensor(self.labels[idx], dtype=torch.float)
         return item
 
     def __len__(self):
@@ -174,37 +153,26 @@ class ToxicDataset(Dataset):
 #
 # ============================================================
 
+# 2. Multi-Label Evaluation Metrics Strategy
 def compute_metrics(eval_pred):
-
     predictions, labels = eval_pred
-
-    # Convert logits → probabilities
+    # Apply sigmoid over raw logits to get confidence scores between 0 and 1
     sigmoid = 1 / (1 + np.exp(-predictions))
-
-    # Convert probabilities → binary predictions
+    # Threshold at 0.5 to get binary predictions per label
     preds = (sigmoid >= 0.5).astype(int)
-
-    # Macro F1 score
-    macro_f1 = f1_score(
-        labels,
-        preds,
-        average="macro",
-        zero_division=0
-    )
-
-    # Macro ROC-AUC
+    
+    # Calculate Macro F1 (perfect for class imbalance)
+    macro_f1 = f1_score(labels, preds, average='macro', zero_division=0)
+    
+    # Calculate Macro ROC-AUC
     try:
-        macro_auc = roc_auc_score(
-            labels,
-            sigmoid,
-            average="macro"
-        )
+        macro_auc = roc_auc_score(labels, sigmoid, average='macro')
     except ValueError:
-        macro_auc = 0.0
-
+        macro_auc = 0.0 # Handle edge cases where a label might have only 1 class in a small batch
+        
     return {
-        "macro_f1": macro_f1,
-        "macro_auc": macro_auc
+        'macro_f1': macro_f1,
+        'macro_auc': macro_auc
     }
 
 
@@ -237,26 +205,16 @@ def compute_metrics(eval_pred):
 # ============================================================
 
 def train():
-
     print("🚀 Starting Training Infrastructure Script...")
-
-    # --------------------------------------------------------
-    # Paths
-    # --------------------------------------------------------
-
+    
+    # Define paths
     train_path = "data/processed/train.csv"
     val_path = "data/processed/val.csv"
-
+    
     if not os.path.exists(train_path):
-        raise FileNotFoundError(
-            "❌ Preprocessed data not found! "
-            "Did you run 'dvc pull'?"
-        )
-
-    # --------------------------------------------------------
-    # Load Dataset
-    # --------------------------------------------------------
-
+        raise FileNotFoundError("❌ Preprocessed data not found! Did you run 'dvc pull' or 'python src/ingest.py'?")
+        
+    # Load dataset splits
     train_df = pd.read_csv(train_path)
     val_df = pd.read_csv(val_path)
 
@@ -264,17 +222,12 @@ def train():
     # Target Labels
     # --------------------------------------------------------
 
-    target_cols = [
-        "hatespeech",
-        "offensive",
-        "dehumanizing",
-        "violence",
-        "genocide"
-    ]
-
+   # ==========================================================
+    # 💥 CHANGED: Match your exact processed CSV labels here 💥
+    # ==========================================================
+    target_cols = ['label_hate_speech', 'label_insult', 'label_humiliate', 'label_dehumanize', 'label_violence']
     num_labels = len(target_cols)
-
-    print(f"📌 Number of labels: {num_labels}")
+    
 
     # --------------------------------------------------------
     # Load Tokenizer
@@ -293,6 +246,9 @@ def train():
     # [1045, 5223, 2068]
     #
     # --------------------------------------------------------
+    # Initialize DistilBERT Tokenizer
+    print("📥 Loading DistilBERT Tokenizer...")
+    tokenizer = DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')
 
     print("📥 Loading DistilBERT Tokenizer...")
 
@@ -314,43 +270,18 @@ def train():
     #     Maximum sequence length
     #
     # --------------------------------------------------------
-
+# Tokenize input texts
     print("🔤 Tokenizing dataset splits...")
-
-    train_encodings = tokenizer(
-        list(train_df["text"].astype(str)),
-        truncation=True,
-        padding=True,
-        max_length=128
-    )
-
-    val_encodings = tokenizer(
-        list(val_df["text"].astype(str)),
-        truncation=True,
-        padding=True,
-        max_length=128
-    )
-
-    # --------------------------------------------------------
-    # Labels
-    # --------------------------------------------------------
-
+    train_encodings = tokenizer(list(train_df['text'].astype(str)), truncation=True, padding=True, max_length=128)
+    val_encodings = tokenizer(list(val_df['text'].astype(str)), truncation=True, padding=True, max_length=128)
+    
+    # Extract label arrays
     train_labels = train_df[target_cols].values
     val_labels = val_df[target_cols].values
-
-    # --------------------------------------------------------
-    # Build Dataset Objects
-    # --------------------------------------------------------
-
-    train_dataset = ToxicDataset(
-        train_encodings,
-        train_labels
-    )
-
-    val_dataset = ToxicDataset(
-        val_encodings,
-        val_labels
-    )
+    
+    # Create PyTorch datasets
+    train_dataset = ToxicDataset(train_encodings, train_labels)
+    val_dataset = ToxicDataset(val_encodings, val_labels)
 
     # --------------------------------------------------------
     # Model Initialization
@@ -391,33 +322,21 @@ def train():
     # --------------------------------------------------------
     # Training Arguments
     # --------------------------------------------------------
-
+# Define Training Arguments
     training_args = TrainingArguments(
-
-        output_dir="./results",
-
+        output_dir='./results',
         num_train_epochs=3,
-
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
-
         warmup_steps=100,
-
         weight_decay=0.01,
-
-        logging_dir="./logs",
+        logging_dir='./logs',
         logging_steps=50,
-
-        evaluation_strategy="epoch",
-
+        eval_strategy="epoch",
         save_strategy="epoch",
-
         load_best_model_at_end=True,
-
         metric_for_best_model="macro_f1",
-
-        # Mixed precision training on GPU
-        fp16=torch.cuda.is_available()
+        fp16=torch.cuda.is_available(), # Use mixed-precision training if a GPU is active
     )
 
     # --------------------------------------------------------
