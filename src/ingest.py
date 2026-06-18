@@ -6,26 +6,36 @@ from sklearn.model_selection import train_test_split
 
 def load_and_aggregate_data():
     print("📥 Loading dataset from Hugging Face...")
-    # Load the dataset into a pandas dataframe
     dataset = load_dataset("ucberkeley-dlab/measuring-hate-speech", split="train")
     df = dataset.to_pandas()
     
     print(f"Raw rows loaded: {len(df)}")
+    print("🔄 Aggregating data into Multi-Label Schema...")
+
+    # Step 1: Define the core dimensions we want DistilBERT to predict
+    target_labels = ['hatespeech', 'insult', 'humiliate', 'dehumanize', 'violence']
+
+    # Step 2: Average both the IRT score and the raw sub-labels per unique comment
+    agg_dict = {'text': 'first', 'hate_speech_score': 'mean'}
+    for label in target_labels:
+        agg_dict[label] = 'mean'
+
+    grouped = df.groupby('comment_id').agg(agg_dict).reset_index()
+
+    # Step 3: Binarize the labels
+    # - For IRT hate_speech_score, > 0.5 means Unambiguous Hate Speech
+    grouped['label_hate_speech'] = (grouped['hate_speech_score'] > 0.5).astype(int)
     
-    print("🔄 Aggregating annotator responses per unique comment using IRT scores...")
-    # Step 1: Average the IRT-adjusted hate_speech_score for each unique comment
-    grouped = df.groupby('comment_id').agg({
-        'text': 'first',
-        'hate_speech_score': 'mean'
-    }).reset_index()
-    
-    # Step 2: Convert continuous average IRT rating into strict binary label 
-    # (> 0.5 is hate speech based on dataset recommendations)
-    grouped['is_hate_speech'] = (grouped['hate_speech_score'] > 0.5).astype(int)
-    
-    # Drop the continuous score column to keep the schema clean for training
-    grouped = grouped.drop(columns=['hate_speech_score'])
-        
+    # - For ordinal sub-labels (0-4 scale), an average > 1.5 indicates strong agreement among annotators
+    grouped['label_insult'] = (grouped['insult'] > 1.5).astype(int)
+    grouped['label_humiliate'] = (grouped['humiliate'] > 1.5).astype(int)
+    grouped['label_dehumanize'] = (grouped['dehumanize'] > 1.5).astype(int)
+    grouped['label_violence'] = (grouped['violence'] > 1.5).astype(int)
+
+    # Step 4: Drop the intermediary raw columns to keep the dataset clean
+    columns_to_drop = ['hate_speech_score'] + target_labels
+    grouped = grouped.drop(columns=columns_to_drop)
+
     print(f"Unique consolidated comments: {len(grouped)}")
     return grouped
 
