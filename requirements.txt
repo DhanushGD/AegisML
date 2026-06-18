@@ -9,3 +9,5 @@ transformers
 accelerate 
 torch
 numpy 
+uvicorn   
+pydantic
