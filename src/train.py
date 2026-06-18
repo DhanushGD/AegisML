@@ -221,6 +221,13 @@ def train():
     # --------------------------------------------------------
     # Target Labels
     # --------------------------------------------------------
+    # ==========================================
+    # 💾 CONFIGURING GOOGLE DRIVE BACKUP PATHS
+    # ==========================================
+    # We save checkpoints and models straight to your persistent Drive folder
+    drive_output_dir = "/content/drive/MyDrive/toxic_classifier_backups/results"
+    drive_model_dir = "/content/drive/MyDrive/toxic_classifier_backups/models/toxic_distilbert"
+    drive_log_dir = "/content/drive/MyDrive/toxic_classifier_backups/logs"
 
    # ==========================================================
     # 💥 CHANGED: Match your exact processed CSV labels here 💥
@@ -403,6 +410,7 @@ def train():
         "✅ Training complete! "
         "Model saved to ./models/toxic_distilbert"
     )
+    print(f"✅ Training complete! Model backup secured at {drive_model_dir}")
 
 
 if __name__ == "__main__":
