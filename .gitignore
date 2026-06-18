@@ -1,12 +1,17 @@
 TC_venv/
 .pytest_cache/
 __pycache__/
+venv/
 
-# Ignore everything inside data/ but not the folder itself
-data/*
+# ==========================================
+# MLOps Data Rules: Ignore large data but track DVC files
+# ==========================================
 
-# Force Git to scan subdirectories inside data/
-!data/**/
+# 1. Ignore actual CSV files anywhere inside the data tree
+data/**/*.csv
 
-# Do NOT ignore .dvc files anywhere inside data/
+# 2. Ignore any untracked raw data files 
+data/raw/*
+
+# 3. Explicitly allow Git to track all .dvc pointer files
 !data/**/*.dvc
