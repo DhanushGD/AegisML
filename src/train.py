@@ -322,7 +322,7 @@ def train():
     # --------------------------------------------------------
     # Training Arguments
     # --------------------------------------------------------
-# Define Training Arguments
+# Define Training Arguments inside src/train.py
     training_args = TrainingArguments(
         output_dir='./results',
         num_train_epochs=3,
@@ -330,13 +330,17 @@ def train():
         per_device_eval_batch_size=16,
         warmup_steps=100,
         weight_decay=0.01,
-        logging_dir='./logs',
-        logging_steps=50,
         eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model="macro_f1",
-        fp16=torch.cuda.is_available(), # Use mixed-precision training if a GPU is active
+        fp16=torch.cuda.is_available(),
+        
+        # ==========================================
+        # 📊 ACTIVATE STAGE 3: EXPERIMENT TRACKING
+        # ==========================================
+        report_to="wandb", 
+        logging_steps=10
     )
 
     # --------------------------------------------------------
