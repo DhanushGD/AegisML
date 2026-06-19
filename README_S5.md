@@ -43,6 +43,21 @@ The Retrain Phase: You combine your original Berkeley training rows with these n
 
 This introduces the true value of your work. The model maintains its deep understanding of toxicity but learns the latest context and slang, preventing accuracy degradation over time.
 
-
+# Main Idea for re-training:
 from the HTML report we got from Evidently AI,t extracts the raw JSON metrics behind that HTML report.
 If Evidently AI flags that more than 50% of your metrics have drifted, it triggers a sequence of automated steps:
+you cannot just label the new data as a single generic "hate/not-hate" category. If you do that, the schemas won't match, and you won't be able to merge them into your training pipeline because your DistilBERT model expects exactly 5 binary outputs ($0$ or $1$) for every single text row it processes.
+
+When you send the drifted production data to your labeling layer (whether that is a team of human annotators or a high-tier LLM like GPT-4 via an API call), you must enforce a strict multi-label annotation schema.
+
+## The Data Structural Mapping
+Your annotation interface or your LLM prompt template must ask 5 explicit questions for every drifted text string:
+Input Text: "I will kick your ass for sure!"
+------------------------------------------
+1. Is this hate speech?    --> [0 or 1]
+2. Is this an insult?      --> [0 or 1]
+3. Is this humiliating?    --> [0 or 1]
+4. Is this dehumanizing?   --> [0 or 1]
+5. Is this violent?        --> [0 or 1]
+This ensures that your newly labeled production data looks exactly like this before it hits the merge step:
+Because the column structure aligns perfectly with your original Berkeley training set, you can run a clean pandas.concat([old_df, new_drifted_labeled_df]) to create your updated Dataset v2.
