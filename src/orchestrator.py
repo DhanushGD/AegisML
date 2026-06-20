@@ -7,7 +7,14 @@ import ollama
 from evidently.report import Report
 from evidently.metric_preset import DataDriftPreset
 from evidently import ColumnMapping
+# Add this snippet to the top of your local src/orchestrator.py
+import requests
 
+LIVE_SPACE_DB_URL = "https://your-hf-space-url/download_logs"
+response = requests.get(LIVE_SPACE_DB_URL)
+with open("data/production_logs.db", "wb") as f:
+    f.write(response.content)
+    
 DB_PATH = "data/production_logs.db"
 VAL_PATH = "data/processed/val.csv"
 DRIFT_THRESHOLD = 0.50  # 50% threshold metric

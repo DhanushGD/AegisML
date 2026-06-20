@@ -30,26 +30,6 @@ TARGET_LABELS = ['label_hate_speech', 'label_insult', 'label_humiliate', 'label_
 tokenizer = None
 model = None
 
-# def init_db():
-#     """Creates a local SQLite database to track incoming inferences for Stage 5 monitoring."""
-#     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-#     conn = sqlite3.connect(DB_PATH)
-#     cursor = conn.cursor()
-#     cursor.execute('''
-#         CREATE TABLE IF NOT EXISTS inference_logs (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             timestamp TEXT,
-#             input_text TEXT,
-#             label_hate_speech REAL,
-#             label_insult REAL,
-#             label_humiliate REAL,
-#             label_dehumanize REAL,
-#             label_violence REAL
-#         )
-#     ''')
-#     conn.commit()
-#     conn.close()
-#     print(f"🗄️ SQLite database initialized at {DB_PATH}")
 from contextlib import asynccontextmanager
 
 def init_db():
@@ -73,24 +53,28 @@ def init_db():
     conn.close()
     print(f"🗄️ SQLite database initialized at {DB_PATH}")
 
-    
-# @app.on_event("startup")
-# def startup_event():
-#     global tokenizer, model
-    
-#     # Initialize our database logging framework
-#     init_db()
-    
-#     print(f"📥 Downloading and caching weights directly from HF Hub: {MODEL_REPO_ID}...")
-#     try:
-#         # HuggingFace automatically downloads, caches, and streams the weights directly from your account
-#         tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_REPO_ID)
-#         model = DistilBertForSequenceClassification.from_pretrained(MODEL_REPO_ID)
-#         model.eval() 
-#         print("🚀 API Server is online and authenticated with Hugging Face Hub registry!")
-#     except Exception as e:
-#         raise RuntimeError(f"Failed to load model from Hugging Face Hub: {str(e)}")
 
+# Shared inference logic used by both FastAPI and Gradio UI
+def run_inference(text: str):
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits.squeeze().detach().cpu().numpy()
+    probabilities = 1 / (1 + np.exp(-logits))
+    
+    prediction_map = {TARGET_LABELS[i]: float(probabilities[i]) for i in range(len(TARGET_LABELS))}
+    
+    # Log prediction to SQLite database
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO inference_logs (timestamp, input_text, label_hate_speech, label_insult, label_humiliate, label_dehumanize, label_violence)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (datetime.utcnow().isoformat(), text, *[prediction_map[l] for l in TARGET_LABELS]))
+    conn.commit()
+    conn.close()
+    
+    return prediction_map
 
 # Modern Lifespan Handler for Asset Preloading
 @asynccontextmanager
@@ -116,58 +100,36 @@ app = FastAPI(
 def health_check():
     return {"status": "healthy", "model_source": MODEL_REPO_ID}
 
-@app.post("/predict", response_model=PredictionResponse)
-def predict_toxicity(payload: CommentRequest):
+@app.post("/predict")
+def predict_endpoint(payload: CommentRequest):
     if not payload.text.strip():
-        raise HTTPException(status_code=400, detail="Text payload cannot be empty.")
-        
-    try:
-        # Tokenize incoming raw string
-        inputs = tokenizer(
-            payload.text, 
-            return_tensors="pt", 
-            truncation=True, 
-            padding=True, 
-            max_length=128
-        )
-        
-        # Disable gradient calculations for production speed
-        with torch.no_grad():
-            outputs = model(**inputs)
-            # logits = outputs.logits.squeeze().numpy()
-            logits = outputs.logits.squeeze().detach().cpu().numpy()
-            
-        # Apply Sigmoid activation function to get continuous probability metrics
-        probabilities = 1 / (1 + np.exp(-logits))
-        
-        # Create user response dictionary
-        prediction_map = {
-            TARGET_LABELS[i]: float(probabilities[i]) 
-            for i in range(len(TARGET_LABELS))
-        }
-        
-        # ==========================================================
-        # 💾 AUDIT TRAIL LOGGING: Log live inferences to SQLite 
-        # ==========================================================
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO inference_logs (
-                timestamp, input_text, label_hate_speech, label_insult, label_humiliate, label_dehumanize, label_violence
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            datetime.utcnow().isoformat(),
-            payload.text,
-            prediction_map['label_hate_speech'],
-            prediction_map['label_insult'],
-            prediction_map['label_humiliate'],
-            prediction_map['label_dehumanize'],
-            prediction_map['label_violence']
-        ))
-        conn.commit()
-        conn.close()
-        
-        return PredictionResponse(text=payload.text, predictions=prediction_map)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Inference Engine Error: {str(e)}")
+        raise HTTPException(status_code=400, detail="Text cannot be empty.")
+    return {"text": payload.text, "predictions": run_inference(payload.text)}
+
+from fastapi.responses import FileResponse
+
+# Add this endpoint inside src/app.py
+@app.get("/download_logs")
+def download_logs():
+    if os.path.exists(DB_PATH):
+        return FileResponse(DB_PATH, filename="production_logs.db", media_type="application/x-sqlite3")
+    raise HTTPException(status_code=404, detail="No database records found yet.")
+    
+# --- GRADIO INTERACTIVE UI SETUP ---
+def gradio_interface(text):
+    if not text.strip():
+        return "Please enter valid text."
+    results = run_inference(text)
+    # Format the dictionary output nicely for the UI screen
+    return {label.replace("label_", "").upper(): score for label, score in results.items()}
+
+demo = gr.Interface(
+    fn=gradio_interface,
+    inputs=gr.Textbox(lines=2, placeholder="Type a comment to evaluate toxicity..."),
+    outputs=gr.Label(num_top_classes=5),
+    title="🛡️ AI Real-Time Content Moderation Gatekeeper",
+    description="This multi-label classifier scores text semantics instantly using fine-tuned DistilBERT models."
+)
+
+# Mount Gradio UI directly onto the root URL of your FastAPI application
+app = gr.mount_gradio_app(app, demo, path="/")
