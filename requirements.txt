@@ -11,4 +11,4 @@ torch
 numpy 
 uvicorn   
 pydantic
-cards
+audioop-lts
