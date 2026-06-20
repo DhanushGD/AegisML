@@ -10,7 +10,7 @@ from evidently.metric_preset import DataDriftPreset
 from evidently import ColumnMapping
 
 # Configuration Parameters
-LIVE_SPACE_DB_URL = "https://your-hf-space-url/download_logs"  # Replace with your actual HF Space URL
+LIVE_SPACE_DB_URL = "https://luffyyyyyyyyyyyyyyyyy-toxic-classifier-api.hf.space/download_logs"  # Replace with your actual HF Space URL
 DB_PATH = "data/production_logs.db"
 VAL_PATH = "data/processed/val.csv"
 DRIFT_THRESHOLD = 0.50          # 50% threshold metric
