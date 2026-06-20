@@ -118,6 +118,9 @@ def init_db():
 
 #     print("[INFO] Application shutting down")
 
+print("Initializing database...")
+init_db()
+
 print("Loading tokenizer...")
 
 tokenizer = DistilBertTokenizerFast.from_pretrained(
@@ -142,7 +145,7 @@ print("MODEL LOADED SUCCESSFULLY")
 app = FastAPI(
     title="Real-Time Toxic Comment Classifier API",
     description="Production-ready REST API",
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 
@@ -287,7 +290,7 @@ with gr.Blocks() as demo:
 print("GRADIO BLOCKS CREATED")
 
 app = gr.mount_gradio_app(
-    api,
+    app,
     demo,
     path="/ui",
 )

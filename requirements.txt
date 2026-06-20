@@ -12,6 +12,6 @@ numpy
 uvicorn
 pydantic
 pydub
-gradio==6.19.0
+gradio
 huggingface_hub
 python-multipart
