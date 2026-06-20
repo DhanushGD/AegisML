@@ -12,4 +12,5 @@ numpy
 uvicorn   
 pydantic
 pydub
-huggingface_hub
+gradio==4.44.1
+huggingface_hub==0.23.5
