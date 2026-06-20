@@ -2,7 +2,7 @@ datasets
 pandas 
 scikit-learn 
 dvc 
-great_expectations 
+fastapi 
 pyyaml 
 scikit-multilearn
 transformers 
