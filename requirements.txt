@@ -11,4 +11,4 @@ torch
 numpy 
 uvicorn   
 pydantic
-audioop-lts
+pydub
