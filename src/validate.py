@@ -1,13 +1,16 @@
 # src/validate.py
 import pandas as pd
 import great_expectations as ge
+from great_expectations.dataset.pandas_dataset import PandasDataset
 import sys
 
 def validate_dataset(file_path):
     print(f"🔍 Validating data schema for: {file_path}")
+    raw_df = pd.read_csv(file_path)
+    df = PandasDataset(raw_df)
     
     # Load data as a Great Expectations DataFrame
-    df = ge.from_pandas(pd.read_csv(file_path))
+    # df = ge.from_pandas(pd.read_csv(file_path))
     
     # Define the updated multi-label columns we created in ingest.py
     label_columns = [
