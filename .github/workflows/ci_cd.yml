@@ -38,7 +38,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest httpx uvicorn pandas evidently ollama
+        pip install pytest httpx uvicorn pandas evidently ollama gradio httpx2
 
     # 🛠️ WORKSPACE SEEDING: Create minimal structural mock csv files 
     # so Great Expectations & PyTest don't crash from missing files in the cloud!

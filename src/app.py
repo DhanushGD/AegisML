@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
-
+import gradio as gr
 # Define the expected JSON input structure
 class CommentRequest(BaseModel):
     text: str
@@ -114,7 +114,7 @@ def download_logs():
     if os.path.exists(DB_PATH):
         return FileResponse(DB_PATH, filename="production_logs.db", media_type="application/x-sqlite3")
     raise HTTPException(status_code=404, detail="No database records found yet.")
-    
+
 # --- GRADIO INTERACTIVE UI SETUP ---
 def gradio_interface(text):
     if not text.strip():
