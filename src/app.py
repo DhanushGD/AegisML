@@ -11,3 +11,5 @@ demo = gr.Interface(
     outputs=gr.Textbox(),
     title="Test Space"
 )
+
+demo.launch()
