@@ -15,7 +15,7 @@ short_description: Asynchronous Multi-Label Toxicity Moderation API Gateway
 license: mit
 ---
 
-# 🛡️ Real-Time Toxic Comment Classifier MLOps Infrastructure
+# 🛡️ AegisML: Autonomous Multi-Label Toxicity Moderation with Self-Healing MLOps Infrastructure
 
 An end-to-end, self-healing production infrastructure built around a fine-tuned sequence classification model (**DistilBERT**). This system moves beyond simple model training by implementing live data schemas, robust model observability, automated drift tracking, and an intentional **Human-in-the-Loop (HITL)** re-labeling loop using a local LLM to drive continuous training workflows safely and deterministically.
 
