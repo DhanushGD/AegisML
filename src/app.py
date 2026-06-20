@@ -15,13 +15,13 @@ from transformers import (
     DistilBertForSequenceClassification,
     DistilBertTokenizerFast,
 )
+
 print("APP STARTING...")
+
 # ==========================================================
 # CONFIG
 # ==========================================================
-
 MODEL_REPO_ID = "Luffyyyyyyyyyyyyyyyyy/toxic-distilbert"
-
 DB_PATH = "data/production_logs.db"
 
 TARGET_LABELS = [
@@ -35,30 +35,23 @@ TARGET_LABELS = [
 tokenizer = None
 model = None
 
-
 # ==========================================================
 # REQUEST / RESPONSE MODELS
 # ==========================================================
-
 class CommentRequest(BaseModel):
     text: str
-
 
 class PredictionResponse(BaseModel):
     text: str
     predictions: dict
 
-
 # ==========================================================
 # DATABASE
 # ==========================================================
-
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS inference_logs (
@@ -73,96 +66,40 @@ def init_db():
         )
         """
     )
-
     conn.commit()
     conn.close()
-
     print(f"[OK] SQLite initialized: {DB_PATH}")
-
-
-# ==========================================================
-# MODEL LOADING
-# ==========================================================
-
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     global tokenizer, model
-
-#     print("===================================")
-#     print("Starting application lifespan...")
-#     print("===================================")
-
-#     try:
-#         init_db()
-
-#         print(f"[INFO] Loading tokenizer from {MODEL_REPO_ID}")
-#         tokenizer = DistilBertTokenizerFast.from_pretrained(
-#             MODEL_REPO_ID
-#         )
-
-#         print(f"[INFO] Loading model from {MODEL_REPO_ID}")
-#         model = DistilBertForSequenceClassification.from_pretrained(
-#             MODEL_REPO_ID
-#         )
-
-#         model.eval()
-
-#         print("[SUCCESS] Model loaded successfully")
-#         print("[SUCCESS] Application startup complete")
-
-#     except Exception as e:
-#         print(f"[FATAL STARTUP ERROR] {str(e)}")
-#         raise
-
-#     yield
-
-#     print("[INFO] Application shutting down")
 
 print("Initializing database...")
 init_db()
 
 print("Loading tokenizer...")
-
-tokenizer = DistilBertTokenizerFast.from_pretrained(
-    MODEL_REPO_ID
-)
+tokenizer = DistilBertTokenizerFast.from_pretrained(MODEL_REPO_ID)
 
 print("Loading model...")
-
-model = DistilBertForSequenceClassification.from_pretrained(
-    MODEL_REPO_ID
-)
-
+model = DistilBertForSequenceClassification.from_pretrained(MODEL_REPO_ID)
 model.eval()
-
 print("MODEL LOADED SUCCESSFULLY")
 
-
 # ==========================================================
-# FASTAPI
+# FASTAPI INSTANCE
 # ==========================================================
-
 app = FastAPI(
     title="Real-Time Toxic Comment Classifier API",
-    description="Production-ready REST API",
-    # lifespan=lifespan,
+    description="Production-ready REST API with integrated Gradio UI",
 )
 
-
-@app.get("/")
+@app.get("/health")
 def health_check():
     return {
         "status": "healthy",
         "model_source": MODEL_REPO_ID,
     }
 
-
 # ==========================================================
-# INFERENCE
+# INFERENCE CORE
 # ==========================================================
-
 def run_inference(text: str):
-
     if tokenizer is None or model is None:
         raise RuntimeError("Model not loaded.")
 
@@ -178,7 +115,6 @@ def run_inference(text: str):
         outputs = model(**inputs)
 
     logits = outputs.logits.squeeze().detach().cpu().numpy()
-
     probabilities = 1 / (1 + np.exp(-logits))
 
     prediction_map = {
@@ -188,19 +124,10 @@ def run_inference(text: str):
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
     cursor.execute(
         """
         INSERT INTO inference_logs
-        (
-            timestamp,
-            input_text,
-            label_hate_speech,
-            label_insult,
-            label_humiliate,
-            label_dehumanize,
-            label_violence
-        )
+        (timestamp, input_text, label_hate_speech, label_insult, label_humiliate, label_dehumanize, label_violence)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
@@ -209,78 +136,56 @@ def run_inference(text: str):
             *[prediction_map[l] for l in TARGET_LABELS],
         ),
     )
-
     conn.commit()
     conn.close()
 
     return prediction_map
 
-
 @app.post("/predict", response_model=PredictionResponse)
 def predict_endpoint(payload: CommentRequest):
-
     if not payload.text.strip():
         raise HTTPException(
             status_code=400,
             detail="Text cannot be empty.",
         )
-
     return {
         "text": payload.text,
         "predictions": run_inference(payload.text),
     }
 
-
 @app.get("/download_logs")
 def download_logs():
-
     if os.path.exists(DB_PATH):
         return FileResponse(
             DB_PATH,
             filename="production_logs.db",
             media_type="application/x-sqlite3",
         )
-
     raise HTTPException(
         status_code=404,
         detail="No database records found yet.",
     )
 
-
 # ==========================================================
-# GRADIO
+# GRADIO INTERFACE
 # ==========================================================
-
 def gradio_predict(text):
-
     if not text.strip():
-        return {"ERROR": 1.0}
-
+        return {"ERROR_EMPTY_TEXT": 1.0}
     results = run_inference(text)
-
     return {
         label.replace("label_", "").upper(): score
         for label, score in results.items()
     }
 
-
 with gr.Blocks() as demo:
-
     gr.Markdown("# 🛡️ AI Toxic Comment Classifier")
-
-    gr.Markdown(
-        "Multi-label DistilBERT moderation system"
-    )
-
-    text_input = gr.Textbox(
-        lines=3,
-        placeholder="Type a comment..."
-    )
-
+    gr.Markdown("Multi-label DistilBERT moderation system with exposed REST API endpoints.")
+    
+    text_input = gr.Textbox(lines=3, placeholder="Type a comment to moderate...")
     output = gr.Label()
-
-    predict_btn = gr.Button("Predict")
-
+    predict_btn = gr.Button("Evaluate Content")
+    
     predict_btn.click(
         fn=gradio_predict,
         inputs=text_input,
@@ -289,10 +194,8 @@ with gr.Blocks() as demo:
 
 print("GRADIO BLOCKS CREATED")
 
-app = gr.mount_gradio_app(
-    app,
-    demo,
-    path="/ui",
-)
+# 💥 FIX: Mount Gradio on "/" so the public browser layout renders immediately 
+# Your FastAPI endpoints remain fully live right alongside it on /predict and /download_logs!
+app = gr.mount_gradio_app(app, demo, path="/")
 
-print("APPLICATION READY")
+print("APPLICATION READY FOR DEPLOYMENT")

@@ -1,14 +1,17 @@
 ---
 title: Toxic Classifier API
-emoji: 🚀
+emoji: 🛡️
 colorFrom: red
-colorTo: red
+colorTo: indigo
 sdk: docker
-app_port: 8501
+app_port: 7860
 tags:
-  - streamlit
+  - fastapi
+  - gradio
+  - transformers
+  - mlops
 pinned: false
-short_description: Streamlit template space
+short_description: Asynchronous Multi-Label Toxicity Moderation API Gateway
 license: mit
 ---
 
