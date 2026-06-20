@@ -65,7 +65,7 @@ jobs:
         git config --global user.name "GitHub Actions"
         
         git remote remove hf || true
-        git remote add hf https://DhanushGD:$HF_SECRET@huggingface.co/spaces/DhanushGD/toxic-moderator-api
+        git remote add hf https://DhanushGD:$HF_SECRET@huggingface.co/spaces/Luffyyyyyyyyyyyyyyyyy/toxic-moderator-api
         
         git push --force hf main
 
