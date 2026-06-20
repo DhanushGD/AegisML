@@ -54,6 +54,7 @@ The pipeline functions as a closed-loop data lifecycle engine divided into disti
 - **CI/CD Automati**on: GitHub Actions Pipelines (pytest + Cloud Registry Sync)
 
 ## 🧑‍💻 File Structure Mapping
+```text
 ├── .github/workflows/
 │   └── ci_cd.yml               # Automated GitHub Actions validation & deployment
 ├── data/
@@ -71,6 +72,7 @@ The pipeline functions as a closed-loop data lifecycle engine divided into disti
 ├── Dockerfile                  # Uvicorn container orchestration parameters
 ├── requirements.txt            # Explicit project dependency limits
 └── README.md                   # System configuration and blueprint
+```
 
 ## 🔄 The Human-In-The-Loop (HITL) Data Pipeline Flow
 To prevent training drift and avoid wasting expensive GPU compute budgets on tiny, unverified data increments, this infrastructure enforces a structured, batched data-collection loop:
