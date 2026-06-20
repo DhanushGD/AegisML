@@ -12,3 +12,4 @@ numpy
 uvicorn   
 pydantic
 pydub
+huggingface_hub
