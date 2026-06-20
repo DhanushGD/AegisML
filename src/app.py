@@ -12,4 +12,3 @@ demo = gr.Interface(
     title="Test Space"
 )
 
-demo.launch()
